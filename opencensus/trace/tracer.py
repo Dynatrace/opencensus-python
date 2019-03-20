@@ -65,6 +65,17 @@ class Tracer(object):
         self.tracer = self.get_tracer()
         self.store_tracer()
 
+    _on_start_callbacks = []
+    _on_end_callbacks = []
+
+    @staticmethod
+    def on_start(callback):
+        Tracer._on_start_callbacks.append(callback)
+
+    @staticmethod
+    def on_end(callback):
+        Tracer._on_end_callbacks.append(callback)
+
     def should_sample(self):
         """Determine whether to sample this request or not.
         If the context enables tracing, return True.
@@ -105,16 +116,30 @@ class Tracer(object):
         :rtype: :class:`~opencensus.trace.span.Span`
         :returns: The Span object.
         """
-        return self.tracer.span(name)
+        span = self.tracer.span(name)
+
+        for callback in Tracer._on_start_callbacks:
+            callback(span, self.span_context)
+
+        return span
 
     def start_span(self, name='span'):
-        return self.tracer.start_span(name)
+        span = self.tracer.start_span(name)
+
+        for callback in Tracer._on_start_callbacks:
+            callback(span, self.span_context)
+
+        return span
 
     def end_span(self):
         """End a span. Update the span_id in SpanContext to the current span's
         parent span id; Update the current span; Send the span to exporter.
         """
-        self.tracer.end_span()
+        span = self.tracer.end_span()
+        ctxt = self.span_context
+
+        for callback in Tracer._on_end_callbacks:
+            callback(span, ctxt)
 
     def current_span(self):
         """Return the current span."""
